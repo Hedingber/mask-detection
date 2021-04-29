@@ -1,0 +1,12 @@
+kind: project
+metadata:
+  name: mask-detection
+spec:
+  functions: []
+  workflows: []
+  artifacts: []
+  artifact_path: ''
+  source: ''
+  subpath: ''
+  origin_url: ''
+  desired_state: online
