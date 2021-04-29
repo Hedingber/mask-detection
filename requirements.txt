@@ -1,3 +1,7 @@
 mlrun~=0.6.2
 matplotlib~=3.0
 jupyter~=1.0
+opencv-python-headless~=4.0
+tensorflow~=2.2.0
+scikit-learn~=0.23.0
+horovod~=0.20.0
