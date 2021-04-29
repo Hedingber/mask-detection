@@ -41,8 +41,8 @@ import re
 
 # MLRun context
 mlctx           = get_or_create_ctx('horovod-trainer')
-imgs            = mlctx.get_param('imgs')
-annot           = mlctx.get_param('annot')
+images          = mlctx.get_param('images')
+annotations     = mlctx.get_param('annotations')
 model_artifacts = mlctx.get_param('model_artifacts')
 
 # image batch and epocs
@@ -65,9 +65,9 @@ for i in range(1,116):
     
 print("Generating data in CSV format....")
 
-for file in os.listdir(annot):
+for file in os.listdir(annotations):
     row = []
-    xml = et.parse(annot +"/" +file) 
+    xml = et.parse(annotations + "/" + file)
     root = xml.getroot()
     img = root[1].text
     row.append(img)
@@ -87,7 +87,7 @@ for file in os.listdir(annot):
 df = pd.DataFrame(dic)
 
 # prep data
-image_directories = sorted(glob.glob(os.path.join(imgs,"*.png")))
+image_directories = sorted(glob.glob(os.path.join(images, "*.png")))
 
 j=0
 classes = ["without_mask","mask_weared_incorrect","with_mask"]
