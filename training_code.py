@@ -1,11 +1,8 @@
-# horovod
-import horovod.tensorflow.keras as hvd
+import os
+import xml.etree.ElementTree as et
+import re
+import pandas as pd
 
-# mlrun 
-from mlrun import get_or_create_ctx
-from mlrun.artifacts import ChartArtifact
-
-# tensorflow
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import AveragePooling2D
@@ -16,31 +13,35 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from tensorflow.keras.callbacks import ReduceLROnPlateau, ModelCheckpoint
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
 from tensorflow.keras.utils import to_categorical
-import tensorflow as tf
-
-# sklean and plotting 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
-
-# generanl
-import os
 import numpy as np
-import pandas as pd
 import argparse
+import pandas as pd
 import glob
+import os
 import cv2
 import random as rand
-import xml.etree.ElementTree as et
-import re
+
+# horovod
+import horovod.tensorflow.keras as hvd
+# tensorflow
+import tensorflow as tf
+from tensorflow.keras.callbacks import ReduceLROnPlateau
+
+# mlrun
+# from mlrun import get_or_create_ctx
+# from mlrun.artifacts import ChartArtifact
+import mlrun
+import mlrun.artifacts
 
 # MLRun context
-mlctx           = get_or_create_ctx('horovod-trainer')
+mlctx           = mlrun.get_or_create_ctx('horovod-trainer')
 images          = mlctx.get_param('images')
 annotations     = mlctx.get_param('annotations')
 model_artifacts = mlctx.get_param('model_artifacts')
@@ -52,17 +53,15 @@ IMAGE_CHANNELS  = mlctx.get_param('image_channels', 3)  # RGB color
 IMAGE_SIZE      = (IMAGE_WIDTH, IMAGE_HEIGHT)
 IMAGE_SHAPE     = (IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_CHANNELS)
 EPOCHS          = mlctx.get_param('epochs', 1)
-BATCH_SIZE      = mlctx.get_param('batch_size', 16)
+BS      = mlctx.get_param('batch_size', 16)
 
 # parameters for reproducibility:
 RANDOM_STATE    = mlctx.get_param('random_state', 1)
 TEST_SIZE       = mlctx.get_param('test_size', 0.3)
 
-# prep mapping
 dic = {"image": [],"Dimensions": []}
 for i in range(1,116):
-    dic[f'Object {i}']=[]
-    
+	dic[f'Object {i}']=[]
 print("Generating data in CSV format....")
 
 for file in os.listdir(annotations):
@@ -86,41 +85,40 @@ for file in os.listdir(annotations):
         dic[each].append(row[i])
 df = pd.DataFrame(dic)
 
-# prep data
 image_directories = sorted(glob.glob(os.path.join(images, "*.png")))
-
-j=0
-classes = ["without_mask","mask_weared_incorrect","with_mask"]
+j = 0
+classes = ["without_mask", "mask_weared_incorrect", "with_mask"]
 labels = []
 data = []
 
-for idx,image in enumerate(image_directories):
-    img  = cv2.imread(image)
-    #scale to dimension
-    X,Y = df["Dimensions"][idx]
-    cv2.resize(img,(int(X),int(Y)))
-    #find the face in each object
+print("Extracting each data into respective label folders....")
+for idx, image in enumerate(image_directories):
+    img = cv2.imread(image)
+    # scale to dimension
+    X, Y = df["Dimensions"][idx]
+    cv2.resize(img, (int(X), int(Y)))
+    # find the face in each object
     for obj in df.columns[3:]:
         info = df[obj][idx]
-        if info!=0:
+        if info != 0:
             label = info[0]
             info[0] = info[0].replace(str(label), str(classes.index(label)))
-            info=[int(each) for each in info]
-            face = img[info[2]:info[4],info[1]:info[3]]
-            if((info[3]-info[1])>40 and (info[4]-info[2])>40):
+            info = [int(each) for each in info]
+            face = img[info[2]:info[4], info[1]:info[3]]
+            if ((info[3] - info[1]) > 40 and (info[4] - info[2]) > 40):
                 try:
                     face = cv2.resize(face, (224, 224))
                     face = img_to_array(face)
                     face = preprocess_input(face)
                     data.append(face)
                     labels.append(label)
-                    if(label=="mask_weared_incorrect"):
+                    if (label == "mask_weared_incorrect"):
                         data.append(face)
                         labels.append(label)
 
                 except:
                     pass
-                
+
 print("Done!")
 
 data = np.array(data, dtype="float32")
@@ -148,15 +146,21 @@ else:
 
 print(f'Using device: {device}')
 
-# Prepare, test, and train the data
-(trainX, testX, trainY, testY) = train_test_split(data, labels,
-                                                  test_size=TEST_SIZE, stratify=labels, random_state=42)
+aug = ImageDataGenerator(
+    zoom_range=0.1,
+    rotation_range=25,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.15,
+    horizontal_flip=True,
+    fill_mode="nearest"
+    )
 
-# load model
-baseModel = tf.keras.applications.MobileNetV2(weights="imagenet", include_top=False,
-                        input_tensor=Input(shape=(224, 224, 3)))
+baseModel = MobileNetV2(weights="imagenet", include_top=False,
+	input_tensor=Input(shape=(224, 224, 3)))
 
-# construct the head of the model that will be placed on top of the the base model
+# construct the head of the model that will be placed on top of the
+# the base model
 headModel = baseModel.output
 headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
 headModel = Flatten(name="flatten")(headModel)
@@ -171,19 +175,20 @@ model = Model(inputs=baseModel.input, outputs=headModel)
 # loop over all layers in the base model and freeze them so they will
 # *not* be updated during the first training process
 for layer in baseModel.layers:
-    layer.trainable = False
-    
+	layer.trainable = False
+
+(trainX, testX, trainY, testY) = train_test_split(data, labels,
+	test_size=TEST_SIZE, stratify=labels, random_state=42)
+
+print("[INFO] compiling model...")
 # Horovod: adjust learning rate based on number of GPUs.
 # opt = SGD(lr=0.001, momentum=0.9)
 opt = Adam(lr=1e-4 * hvd.size())
 
 # Horovod: add Horovod Distributed Optimizer.
 opt = hvd.DistributedOptimizer(opt)
-
-model.compile(loss='categorical_crossentropy',
-              optimizer=opt,
-              experimental_run_tf_function=False,
-              metrics=['accuracy'])
+model.compile(loss="categorical_crossentropy", optimizer=opt,
+	metrics=["accuracy"], experimental_run_tf_function=False)
 
 if hvd.rank() == 0:
     model.summary()
@@ -208,52 +213,44 @@ callbacks = [
     ReduceLROnPlateau(patience=10, verbose=1),
 ]
 
-# for optimized gpu utilization please use tf.data
-aug = ImageDataGenerator(
-    zoom_range=0.1,
-    rotation_range=25,
-    width_shift_range=0.1,
-    height_shift_range=0.1,
-    shear_range=0.15,
-    horizontal_flip=True,
-    fill_mode="nearest"
-    )
+# train the head of the network
+print("[INFO] training head...")
+H = model.fit(
+	aug.flow(trainX, trainY, batch_size=BS),
+	steps_per_epoch=len(trainX) // BS // hvd.size(),
+	validation_data=(testX, testY),
+	validation_steps=len(testX) // BS // hvd.size(),
+	epochs=EPOCHS)
 
-history = model.fit(
-    aug.flow(trainX, trainY, batch_size=BATCH_SIZE),
-    steps_per_epoch=(len(trainX) // BATCH_SIZE) // hvd.size(),
-    validation_data=(testX, testY),
-    validation_steps=(len(testX) // BATCH_SIZE) // hvd.size(),
-    epochs=EPOCHS)
 
 # log artifact and results
 if hvd.rank() == 0:
     # log the epoch advancement
-    mlctx.logger.info('history:', history.history)
+    mlctx.logger.info('history:', H.history)
     print('MA:', model_artifacts)
 
     # Save the model file
     model.save('model.h5')
     # Produce training chart artifact
-    chart = ChartArtifact('summary.html')
+    chart = mlrun.artifacts.ChartArtifact('summary.html')
     chart.header = ['epoch', 'accuracy', 'val_accuracy', 'loss', 'val_loss']
     for i in range(EPOCHS):
-        chart.add_row([i + 1, history.history['accuracy'][i],
-                       history.history['val_accuracy'][i],
-                       history.history['loss'][i],
-                       history.history['val_loss'][i]])
-    summary = mlctx.log_artifact(chart, local_path='training-summary.html', 
+        chart.add_row([i + 1, H.history['accuracy'][i],
+                       H.history['val_accuracy'][i],
+                       H.history['loss'][i],
+                       H.history['val_loss'][i]])
+    summary = mlctx.log_artifact(chart, local_path='training-summary.html',
                                  artifact_path=model_artifacts)
 
 
     # Save weights
     model.save_weights('model-weights.h5')
-    weights = mlctx.log_artifact('model-weights', local_path='model-weights.h5', 
+    weights = mlctx.log_artifact('model-weights', local_path='model-weights.h5',
                                  artifact_path=model_artifacts, db_key=False)
 
     # Log results
-    mlctx.log_result('loss', float(history.history['loss'][EPOCHS - 1]))
-    mlctx.log_result('accuracy', float(history.history['accuracy'][EPOCHS - 1]))
+    mlctx.log_result('loss', float(H.history['loss'][EPOCHS - 1]))
+    mlctx.log_result('accuracy', float(H.history['accuracy'][EPOCHS - 1]))
 
     mlctx.log_model('model', artifact_path=model_artifacts, model_file='model.h5',
                     labels={'framework': 'tensorflow'},
