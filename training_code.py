@@ -186,6 +186,8 @@ print("[INFO] compiling model...")
 opt = Adam(lr=1e-4 * hvd.size())
 
 # Horovod: add Horovod Distributed Optimizer.
+# Add experimental_run_tf_function=False` to ensure TensorFlow uses hvd.DistributedOptimizer() to compute gradients in
+# model compilation
 opt = hvd.DistributedOptimizer(opt)
 model.compile(loss="categorical_crossentropy", optimizer=opt,
 	metrics=["accuracy"], experimental_run_tf_function=False)
