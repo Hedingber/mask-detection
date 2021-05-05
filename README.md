@@ -13,13 +13,13 @@ their population vaccinated, it looks like there's still more time until we'll g
 [this project](https://www.kaggle.com/notadithyabhat/face-mask-detector/execution) which is trying to train a model to
 detect whether the people in the image are wearing mask or not.
 
-For the this demo we're going to use the mlrun-kit - an helm chart enabling you to use one command to install a stack of
-tools, all preconfigured and integrated, that enables a lot of the capabilities of MLRun, the installation instructions
-can be found [here](https://docs.mlrun.org/en/latest/install.html). After installation we will open the jupyter, create 
+For this demo we're going to use **mlrun-kit**—a helm chart enabling you to use one command to install a stack of
+tools, all preconfigured and integrated, that enables a lot of the capabilities of MLRun. The installation instructions
+can be found [here](https://docs.mlrun.org/en/latest/install.html). After installation we will open the Jupyter, create 
 a new notebook, and use these commands to pull the code for this demo:
 ```jupyter
 import mlrun
 mlrun.load_project('./data/mask-detection', 'git://github.com/hedingber/mask-detection.git')
 ```
 
-To move on open the [mask detection notebook](mask_detection.ipynb) and follow the instructions there
+Then, open the [mask detection notebook](mask_detection.ipynb) and follow the instructions there.
