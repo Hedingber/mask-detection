@@ -13,7 +13,7 @@ their population vaccinated, it looks like there's still more time until we'll g
 [this project](https://www.kaggle.com/notadithyabhat/face-mask-detector/execution) which is trying to train a model to
 detect whether the people in the image are wearing mask or not.
 
-For this demo we're going to use **mlrun-kit**—a helm chart enabling you to use one command to install a stack of
+For this demo we're going to use **mlrun-kit**—a Helm chart enabling you to use one command to install a stack of
 tools, all preconfigured and integrated, that enables a lot of the capabilities of MLRun. The installation instructions
 can be found [here](https://docs.mlrun.org/en/latest/install.html). After installation we will open the Jupyter, create 
 a new notebook, and use these commands to pull the code for this demo:
