@@ -192,8 +192,6 @@ opt = hvd.DistributedOptimizer(opt)
 model.compile(loss="categorical_crossentropy", optimizer=opt,
 	metrics=["accuracy"], experimental_run_tf_function=False)
 
-if hvd.rank() == 0:
-    model.summary()
 
 callbacks = [
     # Horovod: broadcast initial variable states from rank 0 to all other processes.
